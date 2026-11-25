@@ -1,6 +1,4 @@
-<!doctype html>
-<html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
-<title>最佳選擇練習場</title>
+<!doctype html><html lang="zh-Hant"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>*{box-sizing:border-box}html,body{margin:0}</style><title>最佳選擇練習場</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@500;600&display=swap">
@@ -174,8 +172,7 @@ table.data tr.obj td,table.data tr.obj th{background:var(--amber-soft);color:var
 .empty{padding:28px 18px;text-align:center;color:var(--ink2);border:1.5px dashed var(--line);border-radius:10px}
 @media(prefers-reduced-motion:no-preference){.step .body{animation:in .25s ease}@keyframes in{from{opacity:.4;transform:translateY(-3px)}to{opacity:1;transform:none}}}
 </style>
-</head><body>
-<div class="wrap" id="app"><div class="empty" style="margin-top:40px">載入中…</div></div>
+</head><body><div class="wrap" id="app"><div class="empty" style="margin-top:40px">載入中…</div></div>
 <script>
 /* ===== ENGINE: 題目產生與驗證(純數學,不依賴畫面) ===== */
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
@@ -293,7 +290,7 @@ function parseNum(s){
   return NaN;
 }
 /* ===== END ENGINE ===== */
-
+if(typeof module!=='undefined')module.exports={buildProblem,findCorners,orderCorners,parseNum,mulberry32};
 
 
 /* ===== 十二個主題:只是換「故事外皮」,底下都是同一套驗證過的數學 ===== */
@@ -345,6 +342,7 @@ function fracStr(n,d){if(n%d===0)return String(n/d);const g=gcd(n,d);return (n/g
 const store={get(k){try{return localStorage.getItem(k);}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,v);}catch(e){}}};
 
 /* ===== 進度碼:不用伺服器也能讓老師看到進度 ===== */
+const REPORT_URL='https://script.google.com/macros/s/AKfycbwv_gps_omgN9luNplOrqPar1pf3FBJDIcY4V2ILGBT1pWDYEf2k1ac3aP4MZAZaKnbyQ/exec';  // 即時回報網址(Google Apps Script 網頁應用程式網址);留空就只用進度碼
 const FORM_URL='https://forms.gle/yXKu7LvNDGwWjqVC9';   // 老師可以在這裡貼上 Google 表單網址;留空就不顯示「開啟表單」按鈕
 function makeCode(){
   const r=buildRec();const mins=Math.max(0,Math.min(99,Math.round((Date.now()-r.stepStart)/60000)));
@@ -398,7 +396,15 @@ let pushT=null,pushing=false,lastJson='';
 function buildRec(){return {seat:+S.seat||0,nick:(S.nick||'').slice(0,8),theme:S.prob?S.prob.th.id:S.themeId,mode:S.prob?S.prob.mode:S.mode,no:S.problemNo,
   step:S.finished?7:S.step,errs:S.errs.slice(),hints:S.hints.slice(),solved:S.solved,stepStart:S.stepStart,t:Date.now()};}
 function schedulePush(){clearTimeout(pushT);pushT=setTimeout(doPush,900);}
+let lastSent='';
+async function sendReport(){
+  if(!REPORT_URL||!S.seat)return;
+  const rec=buildRec();const j=JSON.stringify(Object.assign({},rec,{t:0}));if(j===lastSent)return;
+  try{await fetch(REPORT_URL,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(rec)});lastSent=j;if(LINK!=='on'){LINK='on';render();}}
+  catch(e){if(LINK!=='off'){LINK='off';render();}}
+}
 async function doPush(){
+  sendReport();
   if(!DB||!UID||LINK==='ro'||!S.seat)return;
   if(pushing){pushT=setTimeout(doPush,600);return;}
   const rec=buildRec();const j=JSON.stringify(Object.assign({},rec,{t:0}));if(j===lastJson)return;
@@ -414,7 +420,7 @@ async function initCaps(){
     UID=USERAPI?await USERAPI.id():null;
     IS_ADMIN=USERAPI?await USERAPI.canEdit():false;
   }catch(e){}
-  LINK=(DB&&UID)?'on':'off';render();
+  LINK=(DB&&UID)?'on':(REPORT_URL?'on':'off');render();
   if(S.view==='teacher')startTeacherSub();
 }
 
@@ -664,7 +670,14 @@ function studentHTML(){
 
 /* ===== 教師畫面 ===== */
 let RECS=[],DEMO=false,teacherSubbed=false,teacherLoadNote='',onlyStuck=false,resetArm=false;
+let polling=null;
+function pollReports(){
+  if(!REPORT_URL||polling)return;
+  const go=()=>fetch(REPORT_URL).then(r=>r.json()).then(j=>{teacherLoadNote='';if(!DEMO&&!PASTED){RECS=(j.recs||[]).map(r=>Object.assign({id:'c'+r.seat},r));}if(S.view==='teacher')render();}).catch(()=>{teacherLoadNote='讀不到即時資料，請檢查網路，或改用貼上進度碼。';if(S.view==='teacher')render();});
+  go();polling=setInterval(()=>{if(S.view==='teacher')go();},8000);
+}
 function startTeacherSub(){
+  pollReports();
   if(teacherSubbed||!DB)return;teacherSubbed=true;let got=false;
   const timer=setTimeout(()=>{if(!got){teacherLoadNote='還沒收到資料。可能網路較慢，或是沒有學生連上。';render();}},10000);
   try{DB.collection('progress').onSnapshot(snap=>{got=true;clearTimeout(timer);teacherLoadNote='';
@@ -701,6 +714,7 @@ function teacherHTML(){
   const shown=onlyStuck?stuck:recs;
   let h=`<div class="stack">`;
   if(DEMO)h+=`<div class="banner"><b>這是示範資料</b>，不是真的學生。用來預覽老師畫面長什麼樣子。<button class="navlink" data-act="demooff">關掉示範</button></div>`;
+  else if(REPORT_URL&&!PASTED)h+=`<div class="banner" style="background:var(--good-soft);border-color:var(--good)">即時連線中，每 8 秒自動更新。學生每次按「檢查」或「提示」就會回報。</div>`;
   else if(LINK!=='on'&&!PASTED)h+=`<div class="banner">${LINK==='pending'?'正在連線…':'目前沒有即時連線。請把學生傳來的進度碼貼在下面的方框，再按「載入進度碼」。'}</div>`;
   if(!DEMO)h+=`<div class="card"><h2>貼上學生的進度碼</h2><p class="small muted" style="margin:0 0 8px">從 Google 表單的回覆試算表，把那一欄整欄複製貼上就可以，一行一個碼。同一個座號會以最新的一筆為準。</p>
   <textarea id="f-codes" data-id="codes" placeholder="LP.7.小安.fair.M.4.010000.000000.0.2.xxxxxx" style="font-family:var(--mono);font-size:13px">${esc(S.inputs.codes||'')}</textarea>
@@ -787,5 +801,4 @@ document.addEventListener('click',e=>{
 setInterval(()=>{if(S.view==='teacher')render();},20000);
 route();initCaps();
 </script>
-
 </body></html>
