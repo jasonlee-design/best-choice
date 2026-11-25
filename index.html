@@ -745,7 +745,7 @@ function render(scroll){
   const app=document.getElementById('app');
   const teacher=S.view==='teacher';
   const link=LINK==='on'?'<span class="pill on"><i></i>已連線，老師看得到進度</span>':LINK==='ro'?'<span class="pill off"><i></i>只能練習（無法回報給老師）</span>':LINK==='pending'?'<span class="pill"><i></i>連線中</span>':'<span class="pill off"><i></i>單機練習中</span>';
-  const head=`<header class="top"><div class="brand"><b>最佳選擇練習場</b><span>線性規劃 × 我最在乎的事</span></div>${teacher?'':link}${S.seat&&!teacher?`<span class="pill">座號 ${esc(S.seat)}</span>`:''}<button class="navlink" data-act="${teacher?'tostudent':'toteacher'}">${teacher?'回學生畫面':'老師畫面'}</button></header>`;
+  const head=`<header class="top"><div class="brand"><b>最佳選擇練習場</b><span>線性規劃 × 我最在乎的事</span></div>${teacher?'':link}${S.seat&&!teacher?`<span class="pill">座號 ${esc(S.seat)}</span>`:''}${teacher?'<button class="navlink" data-act="tostudent">回學生畫面</button>':''}</header>`;
   const ae=document.activeElement,keepId=ae&&ae.dataset&&ae.dataset.id,keepPos=ae&&ae.selectionStart;
   app.innerHTML=head+(teacher?teacherHTML():studentHTML());
   if(keepId){const el=document.getElementById('f-'+keepId);if(el&&(el.tagName==='TEXTAREA'||el.type==='text')&&!scroll){el.focus();try{el.setSelectionRange(keepPos,keepPos);}catch(e){}}}
